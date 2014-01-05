@@ -49,6 +49,12 @@ angular.module('ui.bootstrap.typeahead', ['ui.bootstrap.position', 'ui.bootstrap
       //should it restrict model values to the ones selected from the popup only?
       var isEditable = originalScope.$eval(attrs.typeaheadEditable) !== false;
 
+      //a callback executed when a match is hovered
+      var onHoverCallback = $parse(attrs.typeaheadOnHover);
+
+      //a callback executed when dropdown will be closed
+      var onCloseCallback = $parse(attrs.typeaheadOnClose);
+
       //binding to a variable that indicates if matches are being retrieved asynchronously
       var isLoadingSetter = $parse(attrs.typeaheadLoading).assign || angular.noop;
 
@@ -124,6 +130,9 @@ angular.module('ui.bootstrap.typeahead', ['ui.bootstrap.position', 'ui.bootstrap
               //due to other elements being rendered
               scope.position = appendToBody ? $position.offset(element) : $position.position(element);
               scope.position.top = scope.position.top + element.prop('offsetHeight');
+
+              //fire onHover on first item
+              scope.hover(scope.activeIdx);
 
             } else {
               resetMatches();
@@ -203,27 +212,44 @@ angular.module('ui.bootstrap.typeahead', ['ui.bootstrap.position', 'ui.bootstrap
         }
       });
 
-      scope.select = function (activeIdx) {
-        //called from within the $digest() cycle
+      var getItemModelLabel = function (activeIdx) {
         var locals = {};
         var model, item;
 
         locals[parserResult.itemName] = item = scope.matches[activeIdx].model;
         model = parserResult.modelMapper(originalScope, locals);
-        $setModelValue(originalScope, model);
-        modelCtrl.$setValidity('editable', true);
 
-        onSelectCallback(originalScope, {
+        return {
           $item: item,
           $model: model,
           $label: parserResult.viewMapper(originalScope, locals)
-        });
+        };
+      };
+
+      scope.select = function (activeIdx) {
+        var itemModelLabel = getItemModelLabel(activeIdx);
+        $setModelValue(originalScope, itemModelLabel.$model);
+        modelCtrl.$setValidity('editable', true);
+
+        onSelectCallback(originalScope, itemModelLabel);
 
         resetMatches();
 
         //return focus to the input element if a mach was selected via a mouse click event
         element[0].focus();
       };
+
+      scope.hover = function (activeIdx) {
+        onHoverCallback(originalScope, getItemModelLabel(activeIdx));
+      };
+
+      scope.$watch('activeIdx', function (value) {
+        if (value >= 0) {
+          $timeout(function () {
+            scope.hover(value);
+          });
+        }
+      });
 
       //bind keyboard events: arrows up(38) / down(40), enter(13) and tab(9), esc(27)
       element.bind('keydown', function (evt) {
@@ -253,6 +279,7 @@ angular.module('ui.bootstrap.typeahead', ['ui.bootstrap.position', 'ui.bootstrap
 
           resetMatches();
           scope.$digest();
+          onCloseCallback(originalScope, {});
         }
       });
 
@@ -263,6 +290,9 @@ angular.module('ui.bootstrap.typeahead', ['ui.bootstrap.position', 'ui.bootstrap
       // Keep reference to click handler to unbind it.
       var dismissClickHandler = function (evt) {
         if (element[0] !== evt.target) {
+          if (scope.matches.length) {
+            onCloseCallback(originalScope, {});
+          }
           resetMatches();
           scope.$digest();
         }
