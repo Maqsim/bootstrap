@@ -352,6 +352,53 @@ describe('typeahead tests', function () {
       expect($scope.$label).toEqual('Alaska');
     });
 
+    it('should invoke hover callback on hover', function () {
+
+      $scope.onHover = function ($item, $model, $label) {
+        $scope.$item = $item;
+        $scope.$model = $model;
+        $scope.$label = $label;
+      };
+      var element = prepareInputEl("<div><input ng-model='result' typeahead-on-hover='onHover($item, $model, $label)' typeahead='state.code as state.name for state in states | filter:$viewValue'></div>");
+      var inputEl = findInput(element);
+
+      changeInputValueTo(element, 'Ala');
+      triggerKeyDown(element, 38);
+
+      expect($scope.result).toEqual('Ala');
+      expect($scope.$item).toEqual($scope.states[0]);
+      expect($scope.$model).toEqual('AL');
+      expect($scope.$label).toEqual('Alaska');
+    });
+
+    describe('should invoke close callback on close', function () {
+      var element, inputEl;
+
+      beforeEach(function() {
+        $scope.isClosed = false;
+        $scope.onClose = function () {
+          $scope.isClosed = true;
+        };
+        element = prepareInputEl("<div><input ng-model='result' typeahead-on-close='onClose()' typeahead='state.code as state.name for state in states | filter:$viewValue'></div>");
+        inputEl = findInput(element);
+      });
+
+      it('when ESC was pressed', function () {
+        changeInputValueTo(element, 'Ala');
+        triggerKeyDown(element, 27);
+
+        expect($scope.isClosed).toBe(true);
+      });
+
+      it('when click on document', function () {
+        changeInputValueTo(element, 'Ala');
+        $document.click();
+
+        expect($scope.isClosed).toBe(true);
+      });
+
+    });
+
     it('should correctly update inputs value on mapping where label is not derived from the model', function () {
 
       var element = prepareInputEl("<div><input ng-model='result' typeahead='state.code as state.name for state in states | filter:$viewValue'></div>");
